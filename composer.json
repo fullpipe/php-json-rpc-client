@@ -20,5 +20,8 @@
       "name": "Eugene Bravov",
       "email": "eugene.bravov@gmail.com"
     }
-  ]
+  ],
+  "scripts": {
+    "test": "vendor/bin/phpunit"
+  }
 }
