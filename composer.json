@@ -1,0 +1,24 @@
+{
+  "name": "fullpipe/php-json-rpc-client",
+  "description": "JSON-RPC 2.0 client",
+  "type": "library",
+  "autoload": {
+    "psr-4": {
+      "Fullpipe\\RpcClient\\": "src/"
+    }
+  },
+  "require": {
+    "php": "^7.2",
+    "guzzlehttp/guzzle": "^6.4.1"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^9.0"
+  },
+  "license": "MIT",
+  "authors": [
+    {
+      "name": "Eugene Bravov",
+      "email": "eugene.bravov@gmail.com"
+    }
+  ]
+}
