@@ -181,16 +181,3 @@ class ClientTest extends TestCase
         ];
     }
 }
-
-
-try {
-    $userData = $client->call('user.get', ['id' => 123]);
-} catch (AppError $e) {
-    if ($e->getCode() !== 404) {
-        throw $e;
-    }
-
-    $userData = $this->createNewUser();
-} catch (MethodNotFound | InvalidParams $e) {
-    $this->sentry->catchException($e);
-}
