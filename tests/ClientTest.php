@@ -138,7 +138,7 @@ class ClientTest extends TestCase
 
         $rpc = new Client('mock_url', ['handler' => $handler, 'delay' => 1]);
 
-        $this->expectException(ServerException::class);
+        $this->expectException(ParseError::class);
         $rpc->retryOnce()->call('method_name', ['foo' => 'bar']);
     }
 
