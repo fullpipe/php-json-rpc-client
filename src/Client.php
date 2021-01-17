@@ -2,9 +2,9 @@
 
 namespace Fullpipe\RpcClient;
 
+use Fullpipe\RpcClient\Error\AppError;
 use Fullpipe\RpcClient\Error\InternalError;
 use Fullpipe\RpcClient\Error\InvalidParams;
-use Fullpipe\RpcClient\Error\AppError;
 use Fullpipe\RpcClient\Error\InvalidRequest;
 use Fullpipe\RpcClient\Error\MethodNotFound;
 use Fullpipe\RpcClient\Error\ParseError;
@@ -58,6 +58,7 @@ class Client implements ClientInterface
         $this->apiEndpoint = $apiEndpoint;
         $this->config = \array_merge([
             'retries' => 0,
+            'retryCodes' => [500, 502, 503],
             'delay' => 500,
             'http' => ['timeout' => 1],
         ], $config);
@@ -136,8 +137,8 @@ class Client implements ClientInterface
             $this->throwAppError($data['error']);
         }
 
-        if (json_last_error() !== JSON_ERROR_NONE) {
-            throw new \RuntimeException(json_last_error_msg());
+        if (JSON_ERROR_NONE !== \json_last_error()) {
+            throw new \RuntimeException(\json_last_error_msg());
         }
 
         throw new \RuntimeException($response->getBody(), $response->getStatusCode());
@@ -217,31 +218,34 @@ class Client implements ClientInterface
 
     private function retryDecider()
     {
+        $retryCodes = $this->config['retryCodes'];
+
         return function (
             $retries,
             Request $request,
             Response $response = null,
             RequestException $exception = null
-        ) {
+        ) use ($retryCodes) {
+            $retry = false;
+
             if ($response) {
-                if (0 < $response->getStatusCode() && $response->getStatusCode() < 500) {
-                    return false;
+                if (\in_array($response->getStatusCode(), $retryCodes)) {
+                    $retry = true;
                 }
 
                 $data = \json_decode($response->getBody(), true);
-
-                if ($data && isset($data['error']['code']) && -32603 != $data['error']['code']) {
-                    return false;
+                if ($data && isset($data['error']['code']) && \in_array($data['error']['code'], $retryCodes)) {
+                    $retry = true;
                 }
             }
 
-            if ($exception && !$exception instanceof ConnectException) {
-                return false;
+            if ($exception && $exception instanceof ConnectException) {
+                $retry = true;
             }
 
             $this->nextRequestConfig['retries'] = ($this->nextRequestConfig['retries'] ?? 0) - 1;
 
-            return $retries <= $this->nextRequestConfig['retries'];
+            return $retries <= $this->nextRequestConfig['retries'] ? $retry : false;
         };
     }
 

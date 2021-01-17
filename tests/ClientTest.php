@@ -2,12 +2,6 @@
 
 namespace Fullpipe\Tests\RpcClient;
 
-use GuzzleHttp\Exception\BadResponseException;
-use GuzzleHttp\Exception\ConnectException;
-use GuzzleHttp\Handler\MockHandler;
-use GuzzleHttp\Psr7\Request;
-use GuzzleHttp\Psr7\Response;
-use PHPUnit\Framework\TestCase;
 use Fullpipe\RpcClient\Client;
 use Fullpipe\RpcClient\Error\AppError;
 use Fullpipe\RpcClient\Error\InternalError;
@@ -16,7 +10,13 @@ use Fullpipe\RpcClient\Error\InvalidRequest;
 use Fullpipe\RpcClient\Error\MethodNotFound;
 use Fullpipe\RpcClient\Error\ParseError;
 use Fullpipe\RpcClient\Error\ServerError;
+use GuzzleHttp\Exception\BadResponseException;
+use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Exception\ServerException;
+use GuzzleHttp\Handler\MockHandler;
+use GuzzleHttp\Psr7\Request;
+use GuzzleHttp\Psr7\Response;
+use PHPUnit\Framework\TestCase;
 
 class ClientTest extends TestCase
 {
@@ -46,12 +46,12 @@ class ClientTest extends TestCase
         ], \json_decode($request->getBody(), true));
     }
 
-    public function testRetryCalls()
+    public function testDefaultRetryCodes()
     {
         $handler = new MockHandler([
-            new Response(504, []), // time out
-            new Response(505, []),
-            new Response(506, []),
+            new Response(503, []),
+            new Response(502, []),
+            new Response(503, []),
             new Response(500, []),
             new Response(200, [], \json_encode([
                 'jsonrpc' => '2.0',
@@ -67,11 +67,30 @@ class ClientTest extends TestCase
         $this->assertEquals('foo', $result);
     }
 
+    public function testRetryCodesConfig()
+    {
+        $handler = new MockHandler([
+            new Response(504, []),
+            new Response(511, []),
+            new Response(200, [], \json_encode([
+                'jsonrpc' => '2.0',
+                'result' => 'foo',
+                'id' => 1,
+            ])),
+        ]);
+
+        $rpc = new Client('mock_url', ['retryCodes' => [504, 511], 'handler' => $handler, 'retries' => 10, 'delay' => 1]);
+
+        $result = $rpc->call('method_name', ['foo' => 'bar']);
+
+        $this->assertEquals('foo', $result);
+    }
+
     public function testRetrysOnceAndFails()
     {
         $handler = new MockHandler([
-            new Response(504, []), // time out
-            new Response(504, []), // time out
+            new Response(503, []), // time out
+            new Response(503, []), // time out
             new Response(200, [], \json_encode(['jsonrpc' => '2.0', 'result' => 'foo', 'id' => 1])),
         ]);
 
@@ -81,10 +100,10 @@ class ClientTest extends TestCase
         $rpc->retryOnce()->call('method_name', ['foo' => 'bar']);
     }
 
-    public function testRetriesOn32603()
+    public function testItsAbleToRetryRpcErrors()
     {
         $handler = new MockHandler([
-            new Response(500, [], \json_encode([
+            new Response(200, [], \json_encode([
                 'jsonrpc' => '2.0',
                 'error' => [
                     'code' => -32603,
@@ -96,7 +115,7 @@ class ClientTest extends TestCase
             new Response(200, [], \json_encode(['jsonrpc' => '2.0', 'result' => 'foo', 'id' => 1])),
         ]);
 
-        $rpc = new Client('mock_url', ['handler' => $handler, 'delay' => 1, 'retries' => 0]);
+        $rpc = new Client('mock_url', ['retryCodes' => [504, 511, -32603], 'handler' => $handler, 'delay' => 1, 'retries' => 0]);
 
         $result = $rpc->retryOnce()->call('method_name', ['foo' => 'bar']);
         $this->assertEquals('foo', $result);
@@ -105,7 +124,7 @@ class ClientTest extends TestCase
     public function testDoesNotRetriesOnOtherThen32603()
     {
         $handler = new MockHandler([
-            new Response(500, [], \json_encode([
+            new Response(200, [], \json_encode([
                 'jsonrpc' => '2.0',
                 'error' => [
                     'code' => -32700,
@@ -151,6 +170,9 @@ class ClientTest extends TestCase
 
     /**
      * @dataProvider getRpcErrorsData
+     *
+     * @param mixed $error
+     * @param mixed $exceptionClass
      */
     public function testRpcErrors($error, $exceptionClass)
     {
@@ -173,11 +195,11 @@ class ClientTest extends TestCase
         return [
             [['code' => -32700], ParseError::class],
             [['code' => -32600], InvalidRequest::class],
-            [['code' => -32601 ], MethodNotFound::class],
-            [['code' => -32602 ], InvalidParams::class],
-            [['code' => -32603 ], InternalError::class],
-            [['code' => -32000 ], ServerError::class],
-            [['code' => 404 ], AppError::class],
+            [['code' => -32601], MethodNotFound::class],
+            [['code' => -32602], InvalidParams::class],
+            [['code' => -32603], InternalError::class],
+            [['code' => -32000], ServerError::class],
+            [['code' => 404], AppError::class],
         ];
     }
 }

@@ -16,7 +16,7 @@ use Fullpipe\RpcClient\Error\InvalidParams;
 ...
 
 $client = new Client('https://api.server/rpc', [
-    'retries' => 0, 
+    'retries' => 0,
     'delay' => 500,
     'http' => ['timeout' => 1],
 ]);
@@ -43,20 +43,21 @@ try {
 
 ## Configuration
 
-### Default 
+### Default
 
 By default retries disabled. And CurlHandler used as handler for guzzle.
 
 ```php
 [
-    'retries' => 0, 
+    'retries' => 0,
+    'retryCodes' => [500, 502, 503],
     'delay' => 500,
     'http' => ['timeout' => 1], // options for CurlHandler
 ]
 ```
 
-### Custom handler 
- 
+### Custom handler
+
 You could use you own handler. For tests for example.
 
 ```php
@@ -74,4 +75,15 @@ $handler = new MockHandler([
 $client = new Client('https://api.server/rpc', [
     'handler' => $handler
 ]);
+```
+
+### Retry codes
+
+You could overwrite retryCode to retry on RPC errors
+
+```
+[
+    'retries' => 1,
+    'retryCodes' => [500, 502, 503, -32603],
+]
 ```
